@@ -1,0 +1,65 @@
+-- required SET options for indexed view
+SET ANSI_NULLS ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET NUMERIC_ROUNDABORT OFF;
+SET QUOTED_IDENTIFIER ON;
+SET ARITHABORT ON;
+
+--
+-- drop balances view, then rest of tables
+--
+IF  EXISTS (
+	SELECT *
+	FROM sys.objects
+	WHERE object_id = OBJECT_ID(N'[dbo].[balances]') AND type in (N'V')
+)
+BEGIN
+DROP VIEW [dbo].[balances];
+END;
+
+IF  EXISTS (
+	SELECT *
+	FROM sys.objects
+	WHERE object_id = OBJECT_ID(N'[dbo].[transactions]') AND type in (N'U')
+)
+BEGIN
+DROP TABLE [dbo].[transactions];
+END;
+
+--
+-- create objects
+--
+CREATE TABLE dbo.transactions (
+                                  transaction_id		INT			IDENTITY(1,1) PRIMARY KEY
+    , user_id			UNIQUEIDENTIFIER	NOT NULL
+    , currency_id			INT			NOT NULL
+    , transaction_amount		DECIMAL(18,4)		NOT NULL
+    , transaction_date		DATETIME		DEFAULT GETDATE() -- if applicable
+);
+
+GO
+
+CREATE VIEW dbo.balances
+            WITH SCHEMABINDING
+AS
+SELECT
+    user_id
+     , currency_id
+
+     , SUM(transaction_amount)	AS balance_amount
+     , COUNT_BIG(*)			AS transaction_count
+FROM dbo.transactions
+GROUP BY
+    user_id
+       , currency_id
+;
+GO
+
+CREATE UNIQUE CLUSTERED INDEX UQ_balances_user_id_currency_id
+ON dbo.balances (
+	  user_id
+	, currency_id
+);
+GO
